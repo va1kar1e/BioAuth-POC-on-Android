@@ -1,6 +1,5 @@
 package com.siwanonts.bioauthpoctest
 
-import android.app.Activity
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -13,6 +12,8 @@ class EnterPinActivity : AppCompatActivity(), View.OnClickListener {
     private val enteredPin = StringBuilder()
     private lateinit var pinDots: List<View>
 
+    private val keyPadMapping = mutableMapOf<Int, String>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_enter_pin)
@@ -20,6 +21,7 @@ class EnterPinActivity : AppCompatActivity(), View.OnClickListener {
 
         initializePinDots()
         setupClickListeners()
+        randomizeKeypad()
     }
 
     private fun initializePinDots() {
@@ -34,7 +36,6 @@ class EnterPinActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private fun setupClickListeners() {
-        // Set this activity as the click listener for all number buttons
         findViewById<Button>(R.id.btn_0).setOnClickListener(this)
         findViewById<Button>(R.id.btn_1).setOnClickListener(this)
         findViewById<Button>(R.id.btn_2).setOnClickListener(this)
@@ -48,18 +49,37 @@ class EnterPinActivity : AppCompatActivity(), View.OnClickListener {
         findViewById<ImageButton>(R.id.btn_backspace).setOnClickListener(this)
     }
 
+    private fun randomizeKeypad() {
+        // List of all number buttons
+        val numberButtons = listOf<Button>(
+            findViewById(R.id.btn_0), findViewById(R.id.btn_1),
+            findViewById(R.id.btn_2), findViewById(R.id.btn_3),
+            findViewById(R.id.btn_4), findViewById(R.id.btn_5),
+            findViewById(R.id.btn_6), findViewById(R.id.btn_7),
+            findViewById(R.id.btn_8), findViewById(R.id.btn_9)
+        )
+
+        // Create a shuffled list of digits 0-9
+        val numbers = (0..9).map { it.toString() }.shuffled()
+
+        // Assign shuffled numbers to buttons and store the mapping
+        numberButtons.forEachIndexed { index, button ->
+            val number = numbers[index]
+            button.text = number
+            keyPadMapping[button.id] = number
+        }
+    }
+
     override fun onClick(view: View) {
-        when (view.id) {
-            R.id.btn_backspace -> {
-                if (enteredPin.isNotEmpty()) {
-                    enteredPin.deleteCharAt(enteredPin.length - 1)
-                }
+        if (view.id == R.id.btn_backspace) {
+            if (enteredPin.isNotEmpty()) {
+                enteredPin.deleteCharAt(enteredPin.length - 1)
             }
-            else -> {
-                if (enteredPin.length < 6) {
-                    val button = view as Button
-                    enteredPin.append(button.text)
-                }
+        } else if (view is Button) {
+            // It's a number button
+            if (enteredPin.length < 6) {
+                val number = keyPadMapping[view.id]
+                enteredPin.append(number)
             }
         }
         updatePinDots()
@@ -79,11 +99,10 @@ class EnterPinActivity : AppCompatActivity(), View.OnClickListener {
     private fun checkPinComplete() {
         if (enteredPin.length == 6) {
             if (KeyStorePinManager.checkPin(this, enteredPin.toString())) {
-                setResult(Activity.RESULT_OK)
+                setResult(RESULT_OK)
                 finish()
             } else {
                 Toast.makeText(this, "Incorrect PIN", Toast.LENGTH_SHORT).show()
-                // Reset PIN after a short delay for user feedback
                 enteredPin.clear()
                 pinDots.forEach { it.postDelayed({ updatePinDots() }, 200) }
             }

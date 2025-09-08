@@ -1,5 +1,7 @@
 package com.siwanonts.bioauthpoctest
 
+
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -10,12 +12,17 @@ import androidx.appcompat.app.AppCompatActivity
 
 class SetPinActivity : AppCompatActivity(), View.OnClickListener {
 
+    // Variables to manage PIN entry state
     private val enteredPin = StringBuilder()
     private var firstPin = ""
     private var isConfirmingPin = false
 
+    // UI elements
     private lateinit var pinDots: List<View>
     private lateinit var titleTextView: TextView
+
+    // ✅ Map to store the randomized number for each button ID
+    private val keyPadMapping = mutableMapOf<Int, String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,16 +32,14 @@ class SetPinActivity : AppCompatActivity(), View.OnClickListener {
         titleTextView = findViewById(R.id.text_title)
         initializePinDots()
         setupClickListeners()
+        randomizeKeypad() // ✅ Shuffle the keypad on creation
     }
 
     private fun initializePinDots() {
         pinDots = listOf(
-            findViewById(R.id.dot_1),
-            findViewById(R.id.dot_2),
-            findViewById(R.id.dot_3),
-            findViewById(R.id.dot_4),
-            findViewById(R.id.dot_5),
-            findViewById(R.id.dot_6)
+            findViewById(R.id.dot_1), findViewById(R.id.dot_2),
+            findViewById(R.id.dot_3), findViewById(R.id.dot_4),
+            findViewById(R.id.dot_5), findViewById(R.id.dot_6)
         )
     }
 
@@ -52,18 +57,35 @@ class SetPinActivity : AppCompatActivity(), View.OnClickListener {
         findViewById<ImageButton>(R.id.btn_backspace).setOnClickListener(this)
     }
 
+    /**
+     * ✅ New function to randomize the keypad
+     */
+    private fun randomizeKeypad() {
+        val numberButtons = listOf<Button>(
+            findViewById(R.id.btn_0), findViewById(R.id.btn_1),
+            findViewById(R.id.btn_2), findViewById(R.id.btn_3),
+            findViewById(R.id.btn_4), findViewById(R.id.btn_5),
+            findViewById(R.id.btn_6), findViewById(R.id.btn_7),
+            findViewById(R.id.btn_8), findViewById(R.id.btn_9)
+        )
+        val numbers = (0..9).map { it.toString() }.shuffled()
+
+        numberButtons.forEachIndexed { index, button ->
+            val number = numbers[index]
+            button.text = number
+            keyPadMapping[button.id] = number
+        }
+    }
+
     override fun onClick(view: View) {
-        when (view.id) {
-            R.id.btn_backspace -> {
-                if (enteredPin.isNotEmpty()) {
-                    enteredPin.deleteCharAt(enteredPin.length - 1)
-                }
+        if (view.id == R.id.btn_backspace) {
+            if (enteredPin.isNotEmpty()) {
+                enteredPin.deleteCharAt(enteredPin.length - 1)
             }
-            else -> {
-                if (enteredPin.length < 6) {
-                    val button = view as Button
-                    enteredPin.append(button.text)
-                }
+        } else {
+            if (enteredPin.length < 6) {
+                val number = keyPadMapping[view.id]
+                enteredPin.append(number)
             }
         }
         updatePinDots()
@@ -80,33 +102,30 @@ class SetPinActivity : AppCompatActivity(), View.OnClickListener {
         }
     }
 
+    @SuppressLint("SetTextI18n")
     private fun checkPinComplete() {
-        if (enteredPin.length < 6) return // Do nothing if PIN is not 6 digits yet
+        if (enteredPin.length < 6) return // Exit if PIN is not 6 digits yet
 
         if (!isConfirmingPin) {
-            // --- First Stage: User has entered the first PIN ---
             firstPin = enteredPin.toString()
             isConfirmingPin = true
 
-            // Reset for confirmation stage
             titleTextView.text = "Confirm your PIN"
             enteredPin.clear()
-            // Add a small delay so the user sees the last dot fill before it clears
+
             pinDots.forEach { it.postDelayed({ updatePinDots() }, 100) }
 
         } else {
-            // --- Second Stage: User has entered the confirmation PIN ---
             val secondPin = enteredPin.toString()
             if (firstPin == secondPin) {
-                // --- Success: PINs match ---
                 KeyStorePinManager.savePin(this, firstPin)
                 Toast.makeText(this, "PIN created successfully!", Toast.LENGTH_SHORT).show()
                 finish()
             } else {
-                // --- Failure: PINs do not match ---
+                // Failure: PINs do not match
                 Toast.makeText(this, "PINs do not match. Please start over.", Toast.LENGTH_LONG).show()
 
-                // Reset to the very beginning
+                // Reset everything to the very beginning
                 firstPin = ""
                 isConfirmingPin = false
                 titleTextView.text = "Create a new PIN"
