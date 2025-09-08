@@ -15,6 +15,8 @@ import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var btnAuthenticate: Button
+    private lateinit var btnUsePin: Button
     private lateinit var biometricPrompt: BiometricPrompt
     private lateinit var promptInfo: BiometricPrompt.PromptInfo
 
@@ -33,15 +35,23 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val btnAuthenticate: Button = findViewById(R.id.btn_authenticate)
-        val btnUsePin: Button = findViewById(R.id.btn_use_pin) // ✅ Get the new button
+        btnAuthenticate = findViewById(R.id.btn_authenticate)
+        btnUsePin = findViewById(R.id.btn_use_pin) // ✅ Get the new button
 
         // --- Biometric Setup ---
         if (canAuthenticateWithBiometrics()) {
-            setupBiometricPrompt()
-            btnAuthenticate.setOnClickListener {
-                biometricPrompt.authenticate(promptInfo)
+            if (KeyStorePinManager.isPinSet(this)) {
+                btnAuthenticate.isEnabled = true
+                // If PIN exists, launch the Enter PIN screen
+                setupBiometricPrompt()
+                btnAuthenticate.setOnClickListener {
+                    biometricPrompt.authenticate(promptInfo)
+                }
+            } else {
+                btnAuthenticate.isEnabled = false
+                Toast.makeText(this, "Please set up a PIN first.", Toast.LENGTH_LONG).show()
             }
+
         } else {
             btnAuthenticate.isEnabled = false // Disable if not supported
         }
@@ -53,12 +63,41 @@ class MainActivity : AppCompatActivity() {
                 val intent = Intent(this, EnterPinActivity::class.java)
                 pinLoginLauncher.launch(intent)
             } else {
-                // If no PIN exists, prompt the user to create one
                 Toast.makeText(this, "Please set up a PIN first.", Toast.LENGTH_LONG).show()
-                val intent = Intent(this, SetPinActivity::class.java)
-                startActivity(intent)
+                goToSetPinActivity()
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Update the UI state every time the user returns to this screen
+        updateUiState()
+    }
+
+    private fun updateUiState() {
+        if (KeyStorePinManager.isPinSet(this)) {
+            // A PIN is set. Now, enable the biometric button ONLY IF the device supports it.
+            if (canAuthenticateWithBiometrics()) {
+                btnAuthenticate.isEnabled = true
+                setupBiometricPrompt()
+                btnAuthenticate.setOnClickListener {
+                    biometricPrompt.authenticate(promptInfo)
+                }
+            } else {
+                btnAuthenticate.isEnabled = false
+            }
+        } else {
+            // NO PIN IS SET
+            btnAuthenticate.isEnabled = false
+            // You might want to remove the toast from here to avoid it showing every time
+        }
+    }
+
+    private fun goToSetPinActivity() {
+        // If no PIN exists, prompt the user to create one
+        val intent = Intent(this, SetPinActivity::class.java)
+        startActivity(intent)
     }
 
     private fun goToSecretActivity() {
@@ -104,7 +143,7 @@ class MainActivity : AppCompatActivity() {
         promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Biometric Authentication")
             .setSubtitle("Log in using your biometric credential")
-            .setNegativeButtonText("Cancel")
+            .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
             .build()
     }
 }
